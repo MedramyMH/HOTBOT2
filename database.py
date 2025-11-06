@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, time as dtime
 from supabase import create_client, Client
 import threading
 import time as time_module
+from typing import Dict, List, Optional
 
 SUPABASE_URL = "https://oeinnehyvhyaxomjngwn.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9laW5uZWh5dmh5YXhvbWpuZ3duIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI0MTg3NDQsImV4cCI6MjA3Nzk5NDc0NH0.4HM_qCaIPg_dkd7hli4D233OYa2YD3TR7C5Pa_YGJPo"
