@@ -11,6 +11,7 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 
 class PriceDatabase:
     def __init__(self):
+        self.logger = logging.getLogger(__name__)
         url = SUPABASE_URL
         key = SUPABASE_KEY
 
