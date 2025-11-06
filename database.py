@@ -61,23 +61,161 @@ class PriceDatabase:
             logging.error(f"❌ Error saving {asset} data to Supabase: {e}")
             return False
 
-    def get_database_stats(self):
-        """Retrieve summary statistics"""
+    def save_candle(self, asset: str, timeframe: int, candle_data: Dict) -> bool:
+        """
+        Alternative method name for saving candle data
+        This provides compatibility with different naming conventions
+        """
+        return self.save_price_data(asset, candle_data, timeframe)
+    
+    def get_latest_prices(self, asset: str, timeframe: int, limit: int = 100) -> List[Dict]:
+        """
+        Get latest price data for a specific asset and timeframe
+        
+        Args:
+            asset: Asset symbol
+            timeframe: Timeframe in minutes
+            limit: Number of records to return
+            
+        Returns:
+            List of price data dictionaries
+        """
         try:
-            response = self.supabase.table("price_data").select("*").execute()
-            records = response.data or []
-            total = len(records)
-            unique_assets = len(set(r["asset"] for r in records))
-            timestamps = [r["timestamp"] for r in records]
-            return {
-                "total_records": total,
-                "unique_assets": unique_assets,
-                "date_range": (min(timestamps) if timestamps else None,
-                               max(timestamps) if timestamps else None)
-            }
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                cursor.execute('''
+                    SELECT timestamp, open, high, low, close, volume
+                    FROM price_data 
+                    WHERE asset = ? AND timeframe = ?
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                ''', (asset, timeframe, limit))
+                
+                rows = cursor.fetchall()
+                result = []
+                
+                for row in rows:
+                    result.append({
+                        'timestamp': row['timestamp'],
+                        'open': row['open'],
+                        'high': row['high'],
+                        'low': row['low'],
+                        'close': row['close'],
+                        'volume': row['volume']
+                    })
+                
+                return result
+                
         except Exception as e:
-            logging.error(f"Error getting stats from Supabase: {e}")
-            return {"total_records": 0, "unique_assets": 0, "date_range": (None, None)}
+            logging.error(f"Error getting latest prices for {asset}: {e}")
+            return []
+    
+    def get_price_data(self, asset: str, timeframe: int, start_time: int = None, end_time: int = None) -> List[Dict]:
+        """
+        Get price data for a specific asset and timeframe within a time range
+        
+        Args:
+            asset: Asset symbol
+            timeframe: Timeframe in minutes
+            start_time: Start timestamp (optional)
+            end_time: End timestamp (optional)
+            
+        Returns:
+            List of price data dictionaries
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                query = '''
+                    SELECT timestamp, open, high, low, close, volume
+                    FROM price_data 
+                    WHERE asset = ? AND timeframe = ?
+                '''
+                params = [asset, timeframe]
+                
+                if start_time:
+                    query += ' AND timestamp >= ?'
+                    params.append(start_time)
+                
+                if end_time:
+                    query += ' AND timestamp <= ?'
+                    params.append(end_time)
+                
+                query += ' ORDER BY timestamp ASC'
+                
+                cursor.execute(query, params)
+                rows = cursor.fetchall()
+                
+                result = []
+                for row in rows:
+                    result.append({
+                        'timestamp': row['timestamp'],
+                        'open': row['open'],
+                        'high': row['high'],
+                        'low': row['low'],
+                        'close': row['close'],
+                        'volume': row['volume']
+                    })
+                
+                return result
+                
+        except Exception as e:
+            logging.error(f"Error getting price data for {asset}: {e}")
+            return []
+    
+    def get_database_stats(self) -> Dict:
+        """
+        Get database statistics
+        
+        Returns:
+            Dictionary with database statistics
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Total records
+                cursor.execute('SELECT COUNT(*) FROM price_data')
+                total_records = cursor.fetchone()[0]
+                
+                # Unique assets
+                cursor.execute('SELECT COUNT(DISTINCT asset) FROM price_data')
+                unique_assets = cursor.fetchone()[0]
+                
+                # Date range
+                cursor.execute('SELECT MIN(timestamp), MAX(timestamp) FROM price_data')
+                min_max = cursor.fetchone()
+                date_range = (min_max[0], min_max[1])
+                
+                # Asset counts
+                cursor.execute('''
+                    SELECT asset, COUNT(*) as count 
+                    FROM price_data 
+                    GROUP BY asset 
+                    ORDER BY count DESC
+                ''')
+                asset_counts = [{'asset': row[0], 'count': row[1]} for row in cursor.fetchall()]
+                
+                return {
+                    'total_records': total_records,
+                    'unique_assets': unique_assets,
+                    'date_range': date_range,
+                    'asset_counts': asset_counts
+                }
+                
+        except Exception as e:
+            logging.error(f"Error getting database stats: {e}")
+            return {
+                'total_records': 0,
+                'unique_assets': 0,
+                'date_range': (None, None),
+                'asset_counts': []
+            }
+    
 
     def _schedule_midnight_cleanup(self):
         """Run cleanup every midnight (local time)"""
