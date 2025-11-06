@@ -1,0 +1,405 @@
+"""
+Optimized Trading Signal Generator - Next Candle Predictions
+Generates accurate signals for M1, M5, M15 timeframes
+"""
+
+import logging
+import time
+import schedule
+from datetime import datetime
+from signal_generator import SignalGenerator
+from database import PriceDatabase
+import json
+import requests
+from typing import List, Dict
+
+class TradingSignalBot:
+    def __init__(self, config_path="config.json"):
+        self.config = self.load_config(config_path)
+        self.db = PriceDatabase()
+        self.signal_generator = SignalGenerator(self.db)
+        self.setup_logging()
+        
+        # Only M1, M5, M15 for binary options
+        self.timeframes = [1, 5, 15]
+        self.assets = self.config.get('assets', [
+            'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'USDCAD',
+            'AUDUSD', 'NZDUSD', 'EURGBP', 'EURJPY', 'GBPJPY'
+        ])
+        
+        self.signals_sent = 0
+        self.session_start = datetime.now()
+        
+    def load_config(self, config_path):
+        """Load configuration from JSON file"""
+        try:
+            with open(config_path, 'r') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            self.logger.warning(f"Config file not found: {config_path}, using defaults")
+            return {
+                "assets": ["EURUSD", "GBPUSD", "USDJPY", "USDCAD", "AUDUSD"],
+                "min_confidence": 0.8,
+                "telegram": {
+                    "enabled": True,
+                    "token": "8432186447:AAHStxiGWnqeLAk9XmeCS-ExwEuNSUsXWqg",
+                    "chat_id": "1454104544"
+                }
+            }
+    
+    def setup_logging(self):
+        """Setup comprehensive logging"""
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler('signal_bot.log', encoding='utf-8'),
+                logging.StreamHandler()
+            ]
+        )
+        self.logger = logging.getLogger(__name__)
+    
+    def check_data_availability(self) -> Dict:
+        """Check if enough data is available for analysis"""
+        stats = self.db.get_database_stats()
+        
+        if stats['total_records'] < 100:
+            self.logger.warning(
+                f"⚠️ Low data count: {stats['total_records']} records. "
+                "Need more historical data for accurate signals."
+            )
+            return {'ready': False, 'reason': 'insufficient_data'}
+        
+        return {'ready': True, 'records': stats['total_records']}
+    
+    def generate_signals(self) -> List:
+        """Generate trading signals for all assets and timeframes"""
+        self.logger.info("🔍 Scanning market for trading opportunities...")
+        
+        # Check data availability
+        data_check = self.check_data_availability()
+        if not data_check.get('ready', False):
+            self.logger.warning(f"⏳ Waiting for more data... ({data_check.get('reason')})")
+            return []
+        
+        signals = []
+        min_confidence = self.config.get('min_confidence', 0.7)
+        
+        for asset in self.assets:
+            for timeframe in self.timeframes:
+                try:
+                    signal = self.signal_generator.analyze_asset(asset, timeframe)
+                    
+                    if signal and signal.confidence >= min_confidence:
+                        signals.append(signal)
+                        
+                except Exception as e:
+                    self.logger.error(f"Error analyzing {asset} M{timeframe}: {e}")
+                    continue
+                
+                # Small delay to avoid overwhelming the system
+                time.sleep(0.1)
+        
+        # Sort by confidence (highest first)
+        signals.sort(key=lambda x: x.confidence, reverse=True)
+        
+        return signals
+    
+    def format_telegram_message(self, signal) -> str:
+        """Format signal for Telegram with better readability"""
+        
+        # Emoji for direction
+        direction_emoji = "📈 CALL" if signal.direction == "BUY" else "📉 PUT"
+        
+        # Confidence bar
+        confidence_pct = signal.confidence * 100
+        bars = int(confidence_pct / 10)
+        confidence_bar = "█" * bars + "░" * (10 - bars)
+        
+        # Timeframe expiry
+        expiry_time = datetime.fromisoformat(signal.expiry_time)
+        expiry_str = expiry_time.strftime('%H:%M:%S')
+        
+        message = f"""
+🎯 *TRADING SIGNAL*
+
+*Asset:* {signal.asset}
+*Direction:* {direction_emoji}
+*Timeframe:* M{signal.timeframe} ⚠️ 
+
+💪 *Strength:* {signal.strength:.2f}/1.0
+📊 *Confidence:* {confidence_pct:.1f}%
+{confidence_bar}
+
+💵 *Entry Price:* {signal.current_price:.5f}
+🎯 *Target:* {signal.target_price:.5f}
+⏰ *Expiry:* {expiry_str}
+"""
+# 📋 *Key Indicators:*
+# • RSI: {signal.indicators['rsi']:.1f}
+# • MACD: {signal.indicators['macd']:.5f}
+# • Trend: {signal.indicators['trend']} ({signal.indicators['trend_strength']:.2f})
+
+# ✅ *Reasons:*
+# {chr(10).join(['• ' + r for r in signal.indicators['reasons'][:4]])}
+
+# 🔔 Score: BUY {signal.indicators['buy_score']:.1f} | SELL {signal.indicators['sell_score']:.1f}
+
+# ⚠️ *Trade Duration:* {signal.timeframe} minute(s)
+
+        return message.strip()
+    
+    def send_telegram_signal(self, signal) -> bool:
+        """Send signal to Telegram"""
+        try:
+            telegram_config = self.config.get('telegram', {})
+            
+            if not telegram_config.get('enabled', False):
+                self.logger.debug("Telegram notifications disabled")
+                return False
+            
+            token = telegram_config.get('token')
+            chat_id = telegram_config.get('chat_id')
+            
+            if not token or not chat_id:
+                self.logger.error("Telegram token or chat_id missing")
+                return False
+            
+            message = self.format_telegram_message(signal)
+            
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            data = {
+                'chat_id': chat_id,
+                'text': message,
+                'parse_mode': 'Markdown'
+            }
+            
+            response = requests.post(url, data=data, timeout=10)
+            
+            if response.status_code == 200:
+                self.signals_sent += 1
+                self.logger.info(f"✅ Signal sent to Telegram: {signal.asset} M{signal.timeframe}")
+                return True
+            else:
+                self.logger.error(f"Telegram API error: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error sending Telegram message: {e}")
+            return False
+    
+    def process_signals(self, signals: List):
+        """Process and send signals"""
+        if not signals:
+            self.logger.info("📭 No high-confidence signals at this time")
+            return
+        
+        self.logger.info(f"🎯 Found {len(signals)} trading signal(s)")
+        
+        # Limit to top 3 signals per scan to avoid spam
+        top_signals = signals[:3]
+        
+        for idx, signal in enumerate(top_signals, 1):
+            self.logger.info(
+                f"📊 Signal {idx}/{len(top_signals)}: "
+                f"{signal.asset} M{signal.timeframe} | {signal.direction} | "
+                f"Confidence: {signal.confidence:.1%} | "
+                f"Entry: {signal.current_price:.5f}"
+            )
+            
+            # Send to Telegram
+            self.send_telegram_signal(signal)
+            
+            # Delay between messages
+            if idx < len(top_signals):
+                time.sleep(2)
+    
+    def run_analysis(self):
+        """Run market analysis and generate signals"""
+        try:
+            self.logger.info("="*70)
+            self.logger.info(f"🔄 Analysis started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            # Generate signals
+            signals = self.generate_signals()
+            
+            # Process and send
+            self.process_signals(signals)
+            
+            # Show session stats
+            uptime = datetime.now() - self.session_start
+            self.logger.info(
+                f"📊 Session: {self.signals_sent} signals sent | "
+                f"Uptime: {str(uptime).split('.')[0]}"
+            )
+            self.logger.info("="*70)
+            
+        except Exception as e:
+            self.logger.error(f"Error in analysis: {e}", exc_info=True)
+    
+    def send_startup_message(self):
+        """Send bot startup notification"""
+        try:
+            telegram_config = self.config.get('telegram', {})
+            if not telegram_config.get('enabled', False):
+                return
+            
+            token = telegram_config.get('token')
+            chat_id = telegram_config.get('chat_id')
+            
+            if not token or not chat_id:
+                return
+            
+            db_stats = self.db.get_database_stats()
+            
+            message = f"""
+🤖 *SIGNAL BOT STARTED*
+
+✅ Status: Active
+📊 Database: {db_stats['total_records']:,} records
+📈 Assets: {len(self.assets)}
+⏱️ Timeframes: M1, M5, M15
+🎯 Min Confidence: {self.config.get('min_confidence', 0.7):.0%}
+
+🔔 Bot is now monitoring the market!
+⏰ Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+            
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            data = {
+                'chat_id': chat_id,
+                'text': message.strip(),
+                'parse_mode': 'Markdown'
+            }
+            
+            requests.post(url, data=data, timeout=10)
+            
+        except Exception as e:
+            self.logger.error(f"Error sending startup message: {e}")
+    
+    def start(self):
+        """Start the signal bot"""
+        self.logger.info("="*70)
+        self.logger.info("🚀 OPTIMIZED TRADING SIGNAL BOT")
+        self.logger.info("="*70)
+        self.logger.info(f"📈 Monitoring: {', '.join(self.assets)}")
+        self.logger.info(f"⏱️ Timeframes: M1, M5, M15 (Next Candle Predictions)")
+        self.logger.info(f"🎯 Min Confidence: {self.config.get('min_confidence', 0.7):.0%}")
+        self.logger.info(f"🔔 Telegram: {'Enabled' if self.config.get('telegram', {}).get('enabled') else 'Disabled'}")
+        self.logger.info("="*70)
+        
+        # Send startup notification
+        self.send_startup_message()
+        
+        # Initial analysis
+        self.run_analysis()
+        
+        # Schedule analyses
+        # M1: Every 1 minute
+        schedule.every(1).minutes.do(self.run_analysis)
+        
+        # M5: Every 5 minutes  
+        # M15: Every 15 minutes
+        # (All covered by M1 scan since we check all timeframes)
+        
+        # Hourly summary
+        schedule.every().hour.do(self.send_hourly_summary)
+        
+        self.logger.info("✅ Bot is running. Press Ctrl+C to stop.")
+        self.logger.info("")
+        
+        try:
+            while True:
+                schedule.run_pending()
+                time.sleep(1)
+                
+        except KeyboardInterrupt:
+            self.logger.info("\n🛑 Signal bot stopped by user")
+            self.send_shutdown_message()
+    
+    def send_hourly_summary(self):
+        """Send hourly summary to Telegram"""
+        try:
+            telegram_config = self.config.get('telegram', {})
+            if not telegram_config.get('enabled', False):
+                return
+            
+            token = telegram_config.get('token')
+            chat_id = telegram_config.get('chat_id')
+            
+            if not token or not chat_id:
+                return
+            
+            uptime = datetime.now() - self.session_start
+            
+            message = f"""
+📊 *HOURLY SUMMARY*
+
+🎯 Signals Sent: {self.signals_sent}
+⏱️ Uptime: {str(uptime).split('.')[0]}
+⏰ Time: {datetime.now().strftime('%H:%M:%S')}
+
+✅ Bot is active and monitoring
+"""
+            
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            data = {
+                'chat_id': chat_id,
+                'text': message.strip(),
+                'parse_mode': 'Markdown'
+            }
+            
+            requests.post(url, data=data, timeout=10)
+            
+        except Exception as e:
+            self.logger.error(f"Error sending hourly summary: {e}")
+    
+    def send_shutdown_message(self):
+        """Send shutdown notification"""
+        try:
+            telegram_config = self.config.get('telegram', {})
+            if not telegram_config.get('enabled', False):
+                return
+            
+            token = telegram_config.get('token')
+            chat_id = telegram_config.get('chat_id')
+            
+            if not token or not chat_id:
+                return
+            
+            uptime = datetime.now() - self.session_start
+            
+            message = f"""
+🛑 *SIGNAL BOT STOPPED*
+
+📊 Total Signals: {self.signals_sent}
+⏱️ Session Duration: {str(uptime).split('.')[0]}
+⏰ Stopped: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+👋 Bot has been shut down
+"""
+            
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            data = {
+                'chat_id': chat_id,
+                'text': message.strip(),
+                'parse_mode': 'Markdown'
+            }
+            
+            requests.post(url, data=data, timeout=10)
+            
+        except Exception as e:
+            self.logger.error(f"Error sending shutdown message: {e}")
+
+
+def main():
+    """Main entry point"""
+    try:
+        bot = TradingSignalBot()
+        bot.start()
+    except Exception as e:
+        logging.error(f"Fatal error: {e}", exc_info=True)
+
+
+if __name__ == "__main__":
+    main()
