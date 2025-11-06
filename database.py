@@ -16,9 +16,6 @@ class PriceDatabase:
         self.supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
         self.logger.info("✅ Connected to Supabase database")
 
-        # Background cleanup thread
-        cleaner_thread = threading.Thread(target=self._schedule_midnight_cleanup, daemon=True)
-        cleaner_thread.start()
 
     def _get_local_time(self):
         return datetime.now() + timedelta(hours=1)
