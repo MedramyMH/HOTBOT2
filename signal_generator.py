@@ -5,7 +5,7 @@ Generates accurate trading signals for M1, M5, M15 timeframes
 
 import numpy as np
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 import logging
@@ -288,7 +288,7 @@ class SignalGenerator:
             target_price = current['close'] - (atr_value * 0.5)
         
         # Calculate expiry time
-        entry_time = datetime.now()
+        entry_time = datetime.now() + timedelta(hours=1)
         expiry_minutes = timeframe + 1  # Next candle + 1 minute buffer
         expiry_time = entry_time.timestamp() + (expiry_minutes * 60)
         
