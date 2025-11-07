@@ -6,7 +6,7 @@ Generates accurate signals for M1, M5, M15 timeframes
 import logging
 import time
 import schedule
-from datetime import datetime
+from datetime import datetime,timedelta
 from signal_generator import SignalGenerator
 from database import PriceDatabase
 import json
@@ -28,7 +28,13 @@ class TradingSignalBot:
         ])
         
         self.signals_sent = 0
-        self.session_start = datetime.now()
+        self.time_offset = 1  # ⏰ Offset in hours
+        self.session_start = self.local_now()
+
+
+    def local_now(self):
+        """Return current local time with timezone correction"""
+        return datetime.now() + timedelta(hours=self.time_offset)
         
     def load_config(self, config_path):
         """Load configuration from JSON file"""
@@ -218,7 +224,7 @@ class TradingSignalBot:
         """Run market analysis and generate signals"""
         try:
             self.logger.info("="*70)
-            self.logger.info(f"🔄 Analysis started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            self.logger.info(f"🔄 Analysis started at {self.local_now().strftime('%Y-%m-%d %H:%M:%S')}")
             
             # Generate signals
             signals = self.generate_signals()
@@ -227,7 +233,7 @@ class TradingSignalBot:
             self.process_signals(signals)
             
             # Show session stats
-            uptime = datetime.now() - self.session_start
+            uptime = self.local_now() - self.session_start
             self.logger.info(
                 f"📊 Session: {self.signals_sent} signals sent | "
                 f"Uptime: {str(uptime).split('.')[0]}"
@@ -262,7 +268,7 @@ class TradingSignalBot:
 🎯 Min Confidence: {self.config.get('min_confidence', 0.7):.0%}
 
 🔔 Bot is now monitoring the market!
-⏰ Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+⏰ Started: {self.local_now().strftime('%Y-%m-%d %H:%M:%S')}
 """
             
             url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -330,14 +336,14 @@ class TradingSignalBot:
             if not token or not chat_id:
                 return
             
-            uptime = datetime.now() - self.session_start
+            uptime = self.local_now() - self.session_start
             
             message = f"""
 📊 *HOURLY SUMMARY*
 
 🎯 Signals Sent: {self.signals_sent}
 ⏱️ Uptime: {str(uptime).split('.')[0]}
-⏰ Time: {datetime.now().strftime('%H:%M:%S')}
+⏰ Time: {self.local_now().strftime('%H:%M:%S')}
 
 ✅ Bot is active and monitoring
 """
@@ -367,14 +373,14 @@ class TradingSignalBot:
             if not token or not chat_id:
                 return
             
-            uptime = datetime.now() - self.session_start
+            uptime = self.local_now() - self.session_start
             
             message = f"""
 🛑 *SIGNAL BOT STOPPED*
 
 📊 Total Signals: {self.signals_sent}
 ⏱️ Session Duration: {str(uptime).split('.')[0]}
-⏰ Stopped: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+⏰ Stopped: {self.local_now().strftime('%Y-%m-%d %H:%M:%S')}
 
 👋 Bot has been shut down
 """
