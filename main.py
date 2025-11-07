@@ -418,6 +418,8 @@ def main():
             minutes_until_next_hour = 60 - now.minute
             seconds_until_next_hour = minutes_until_next_hour * 60 - now.second
             time.sleep(seconds_until_next_hour)
+    except Exception as e:
+        logging.error(f"Fatal error: {e}", exc_info=True)
 
 
 if __name__ == "__main__":
