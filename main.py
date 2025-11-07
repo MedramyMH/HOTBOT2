@@ -400,6 +400,7 @@ class TradingSignalBot:
 
 def main():
     """Main entry point"""
+    bot_running = False
     try:
         while True:
             now = datetime.now() + timedelta(hours=1)
