@@ -434,20 +434,24 @@ def main():
                     bot = TradingSignalBot()
                     bot.start()
                     bot_running = True
-            else:
+           else:
                 if bot_running:
                     msg = f"🌙 *Trading Bot Paused*\nTime: {now.strftime('%H:%M')} (outside working hours)"
                     send_telegram_message(msg)
                     logging.info(f"🌙 {now.strftime('%H:%M')} - Outside working hours. Bot paused.")
                     bot_running = False
-                else:
-                    msg = f"🌙 *Trading Bot Paused and will start at 7 AM "
+                elif not bot_running:  # only send once when paused
+                    msg = "🌙 *Trading Bot is paused and will start at 07:00 local time.*"
                     send_telegram_message(msg)
-                    logging.info(f"🌙 {now.strftime('%H:%M')} - Outside working hours. Bot paused.")
+                    logging.info(f"🌙 {now.strftime('%H:%M')} - Outside working hours. Waiting for 07:00.")
+                    bot_running = None  # mark as message sent
 
-            # Sleep until next full hour
+            # Calculate time to next full hour
             minutes_until_next_hour = 60 - now.minute
             seconds_until_next_hour = minutes_until_next_hour * 60 - now.second
+            next_check = now + timedelta(seconds=seconds_until_next_hour)
+            logging.info(f"⏳ Next check scheduled at {next_check.strftime('%H:%M')}.")
+
             time.sleep(seconds_until_next_hour)
 
     except Exception as e:
