@@ -401,15 +401,15 @@ class TradingSignalBot:
 def main():
     """Main entry point"""
     try:
-        bot = TradingSignalBot()
         while True:
-            now = bot.local_now()
+            now = local_now()
             current_time = now.time()
-            start_time = time(7, 0)
-            end_time = time(22, 0)
+            start_time = dt_time(7, 0)
+            end_time = dt_time(22, 0)
 
             if start_time <= current_time <= end_time:
                 logging.info(f"⏱ {now.strftime('%H:%M')} - Within working hours (07:00–22:00). Starting bot...")
+                bot = TradingSignalBot()
                 bot.start()
             else:
                 logging.info(f"🌙 {now.strftime('%H:%M')} - Outside working hours. Bot paused.")
@@ -417,7 +417,7 @@ def main():
             # Sleep until next full hour
             minutes_until_next_hour = 60 - now.minute
             seconds_until_next_hour = minutes_until_next_hour * 60 - now.second
-            time.sleep(seconds_until_next_hour)
+            t.sleep(seconds_until_next_hour)
     except Exception as e:
         logging.error(f"Fatal error: {e}", exc_info=True)
 
