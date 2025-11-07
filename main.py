@@ -402,7 +402,7 @@ def main():
     """Main entry point"""
     try:
         while True:
-            now = local_now()
+            now = datetime.now() + timedelta(hours=1)
             current_time = now.time()
             start_time = dt_time(7, 0)
             end_time = dt_time(22, 0)
