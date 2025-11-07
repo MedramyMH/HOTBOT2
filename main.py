@@ -407,13 +407,22 @@ def main():
             # define working hours correctly using datetime.time()
             start_time = datetime.strptime("07:00", "%H:%M").time()
             end_time = datetime.strptime("22:00", "%H:%M").time()
-
+            
             if start_time <= current_time <= end_time:
-                logging.info(f"⏱ {now.strftime('%H:%M')} - Within working hours (07:00–22:00). Starting bot...")
-                bot = TradingSignalBot()
-                bot.start()
+                if not bot_running:
+                    msg = f"🚀 *Trading Bot Started*\nTime: {now.strftime('%H:%M')} (local)"
+                    send_telegram_message(msg)
+                    logging.info(f"⏱ {now.strftime('%H:%M')} - Within working hours. Starting bot...")
+
+                    bot = TradingSignalBot()
+                    bot.start()
+                    bot_running = True
             else:
-                logging.info(f"🌙 {now.strftime('%H:%M')} - Outside working hours. Bot paused.")
+                if bot_running:
+                    msg = f"🌙 *Trading Bot Paused*\nTime: {now.strftime('%H:%M')} (outside working hours)"
+                    send_telegram_message(msg)
+                    logging.info(f"🌙 {now.strftime('%H:%M')} - Outside working hours. Bot paused.")
+                    bot_running = False
 
             # Sleep until next full hour
             minutes_until_next_hour = 60 - now.minute
