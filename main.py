@@ -411,15 +411,20 @@ def send_telegram_message(text):
 
 def main():
     """Main entry point"""
-    bot_running = False
+    bot_running = False  # Track whether the bot is active
+
+    # TEST Telegram message at startup
+    send_telegram_message("✅ Bot container started successfully.")
+
     try:
         while True:
             now = datetime.now() + timedelta(hours=1)
             current_time = now.time()
-            # define working hours correctly using datetime.time()
+
+            # Define working hours
             start_time = datetime.strptime("07:00", "%H:%M").time()
             end_time = datetime.strptime("22:00", "%H:%M").time()
-            
+
             if start_time <= current_time <= end_time:
                 if not bot_running:
                     msg = f"🚀 *Trading Bot Started*\nTime: {now.strftime('%H:%M')} (local)"
@@ -443,6 +448,7 @@ def main():
 
     except Exception as e:
         logging.error(f"Fatal error: {e}", exc_info=True)
+        send_telegram_message(f"❌ Fatal error: {e}")
 
 
 if __name__ == "__main__":
