@@ -404,8 +404,8 @@ def main():
         while True:
             now = datetime.now() + timedelta(hours=1)
             current_time = now.time()
-            start_time = dt_time(7, 0)
-            end_time = dt_time(22, 0)
+            start_time = datetime(7, 0)
+            end_time = datetime(22, 0)
 
             if start_time <= current_time <= end_time:
                 logging.info(f"⏱ {now.strftime('%H:%M')} - Within working hours (07:00–22:00). Starting bot...")
@@ -417,7 +417,7 @@ def main():
             # Sleep until next full hour
             minutes_until_next_hour = 60 - now.minute
             seconds_until_next_hour = minutes_until_next_hour * 60 - now.second
-            t.sleep(seconds_until_next_hour)
+            time.sleep(seconds_until_next_hour)
     except Exception as e:
         logging.error(f"Fatal error: {e}", exc_info=True)
 
