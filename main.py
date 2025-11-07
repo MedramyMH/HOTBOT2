@@ -401,15 +401,15 @@ class TradingSignalBot:
 def main():
     """Main entry point"""
     try:
+        bot = TradingSignalBot()
         while True:
-            now = self.local_now()
+            now = bot.local_now()
             current_time = now.time()
             start_time = time(7, 0)
             end_time = time(22, 0)
 
             if start_time <= current_time <= end_time:
                 logging.info(f"⏱ {now.strftime('%H:%M')} - Within working hours (07:00–22:00). Starting bot...")
-                bot = TradingSignalBot()
                 bot.start()
             else:
                 logging.info(f"🌙 {now.strftime('%H:%M')} - Outside working hours. Bot paused.")
