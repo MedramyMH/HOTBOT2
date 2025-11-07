@@ -440,6 +440,10 @@ def main():
                     send_telegram_message(msg)
                     logging.info(f"🌙 {now.strftime('%H:%M')} - Outside working hours. Bot paused.")
                     bot_running = False
+                else:
+                    msg = f"🌙 *Trading Bot Paused and will start at 7 AM "
+                    send_telegram_message(msg)
+                    logging.info(f"🌙 {now.strftime('%H:%M')} - Outside working hours. Bot paused.")
 
             # Sleep until next full hour
             minutes_until_next_hour = 60 - now.minute
