@@ -409,12 +409,14 @@ def send_telegram_message(text):
     except Exception as e:
         logging.error(f"Error sending Telegram message: {e}")
 
+
 def main():
     """Main entry point"""
     bot_running = False  # Track whether the bot is active
 
     # TEST Telegram message at startup
     send_telegram_message("✅ Bot container started successfully.")
+    logging.info("✅ Bot container started successfully.")
 
     try:
         while True:
@@ -434,13 +436,15 @@ def main():
                     bot = TradingSignalBot()
                     bot.start()
                     bot_running = True
-           else:
+                else:
+                    logging.info(f"⏱ {now.strftime('%H:%M')} - Bot already running.")
+            else:
                 if bot_running:
                     msg = f"🌙 *Trading Bot Paused*\nTime: {now.strftime('%H:%M')} (outside working hours)"
                     send_telegram_message(msg)
                     logging.info(f"🌙 {now.strftime('%H:%M')} - Outside working hours. Bot paused.")
                     bot_running = False
-                elif not bot_running:  # only send once when paused
+                elif bot_running is False:  # only send once when paused
                     msg = "🌙 *Trading Bot is paused and will start at 07:00 local time.*"
                     send_telegram_message(msg)
                     logging.info(f"🌙 {now.strftime('%H:%M')} - Outside working hours. Waiting for 07:00.")
@@ -457,6 +461,7 @@ def main():
     except Exception as e:
         logging.error(f"Fatal error: {e}", exc_info=True)
         send_telegram_message(f"❌ Fatal error: {e}")
+
 
 
 if __name__ == "__main__":
