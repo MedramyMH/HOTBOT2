@@ -3,7 +3,7 @@ import threading
 import time as time_module
 from datetime import datetime, timedelta
 from supabase import create_client, Client
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 SUPABASE_URL = "https://oeinnehyvhyaxomjngwn.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9laW5uZWh5dmh5YXhvbWpuZ3duIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI0MTg3NDQsImV4cCI6MjA3Nzk5NDc0NH0.4HM_qCaIPg_dkd7hli4D233OYa2YD3TR7C5Pa_YGJPo"
@@ -91,9 +91,9 @@ class PriceDatabase:
             self.logger.error(f"Error getting stats: {e}")
             return {"total_records": 0, "unique_assets": 0, "date_range": (None, None)}
 
-# ========== SIGNAL TRACKING METHODS ==========
+    # ========== SIGNAL TRACKING METHODS ==========
     
-    def save_signal(self, signal) -> Optional[str]:
+    def save_signal(self, signal):
         """
         Save a trading signal to Supabase signals table.
         Returns the signal ID if successful, None otherwise.
@@ -224,7 +224,7 @@ class PriceDatabase:
             except:
                 pass
 
-    def _update_signal_result(self, signal_id: str, result: str, close_price: Optional[float]):
+    def _update_signal_result(self, signal_id: str, result: str, close_price):
         """Update the result field of a signal in the database"""
         try:
             update_data = {
