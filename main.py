@@ -6,6 +6,7 @@ Generates accurate signals for M1, M5, M15 timeframes
 import logging
 import time
 import schedule
+import threading
 from datetime import datetime,timedelta
 from signal_generator import SignalGenerator
 from database import PriceDatabase
@@ -30,6 +31,7 @@ class TradingSignalBot:
         self.signals_sent = 0
         self.time_offset = 1  # ⏰ Offset in hours
         self.session_start = self.local_now()
+        self.verification_threads = []  # Track verification threads
 
 
     def local_now(self):
@@ -120,7 +122,7 @@ class TradingSignalBot:
         # Confidence bar
         confidence_pct = signal.confidence * 100
         bars = int(confidence_pct / 10)
-        confidence_bar = "█" * bars + "░" * (10 - bars)
+        confidence_bar = "█" * bars + "▒" * (10 - bars)
         
         # Timeframe expiry
         expiry_time = datetime.fromisoformat(signal.expiry_time)
@@ -194,10 +196,42 @@ class TradingSignalBot:
             self.logger.error(f"Error sending Telegram message: {e}")
             return False
     
+    def schedule_signal_verification(self, signal_id: str, signal):
+        """
+        Schedule automatic verification of a signal in a background thread.
+        This will wait until expiry + 1 minute and then verify the result.
+        """
+        try:
+            # Create a background thread for this specific signal
+            verification_thread = threading.Thread(
+                target=self.db.verify_signal_result,
+                args=(
+                    signal_id,
+                    signal.asset,
+                    signal.timeframe,
+                    signal.direction,
+                    signal.current_price,
+                    signal.expiry_time
+                ),
+                daemon=True,
+                name=f"Verify-{signal.asset}-M{signal.timeframe}-{signal_id[:8]}"
+            )
+            
+            verification_thread.start()
+            self.verification_threads.append(verification_thread)
+            
+            self.logger.info(
+                f"🕐 Verification scheduled for signal {signal_id} "
+                f"({signal.asset} M{signal.timeframe})"
+            )
+            
+        except Exception as e:
+            self.logger.error(f"Error scheduling verification: {e}")
+    
     def process_signals(self, signals: List):
         """Process and send signals"""
         if not signals:
-            self.logger.info("📭 No high-confidence signals at this time")
+            self.logger.info("🔭 No high-confidence signals at this time")
             return
         
         self.logger.info(f"🎯 Found {len(signals)} trading signal(s)")
@@ -214,7 +248,15 @@ class TradingSignalBot:
             )
             
             # Send to Telegram
-            self.send_telegram_signal(signal)
+            telegram_sent = self.send_telegram_signal(signal)
+            
+            # Save signal to database
+            if telegram_sent:
+                signal_id = self.db.save_signal(signal)
+                
+                # Schedule automatic verification
+                if signal_id:
+                    self.schedule_signal_verification(signal_id, signal)
             
             # Delay between messages
             if idx < len(top_signals):
@@ -338,10 +380,18 @@ class TradingSignalBot:
             
             uptime = self.local_now() - self.session_start
             
+            # Get signal statistics
+            stats = self.db.get_signal_statistics()
+            
             message = f"""
 📊 *HOURLY SUMMARY*
 
 🎯 Signals Sent: {self.signals_sent}
+✅ Wins: {stats['wins']}
+❌ Losses: {stats['losses']}
+⏳ Pending: {stats['pending']}
+📈 Win Rate: {stats['win_rate']:.1f}%
+
 ⏱️ Uptime: {str(uptime).split('.')[0]}
 ⏰ Time: {self.local_now().strftime('%H:%M:%S')}
 
@@ -375,10 +425,18 @@ class TradingSignalBot:
             
             uptime = self.local_now() - self.session_start
             
+            # Get final signal statistics
+            stats = self.db.get_signal_statistics()
+            
             message = f"""
 🛑 *SIGNAL BOT STOPPED*
 
 📊 Total Signals: {self.signals_sent}
+✅ Wins: {stats['wins']}
+❌ Losses: {stats['losses']}
+⏳ Pending: {stats['pending']}
+📈 Win Rate: {stats['win_rate']:.1f}%
+
 ⏱️ Session Duration: {str(uptime).split('.')[0]}
 ⏰ Stopped: {self.local_now().strftime('%Y-%m-%d %H:%M:%S')}
 
