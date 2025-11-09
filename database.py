@@ -36,7 +36,7 @@ class PriceDatabase:
             }
 
             response = (
-                self.supabase.table("price_data")
+                self.supabase.table("prices_data")
                 .upsert(data, on_conflict="asset,timeframe,timestamp")
                 .execute()
             )
@@ -57,7 +57,7 @@ class PriceDatabase:
         """Fetch latest candles from Supabase"""
         try:
             response = (
-                self.supabase.table("price_data")
+                self.supabase.table("prices_data")
                 .select("timestamp, open, high, low, close, volume")
                 .eq("asset", asset)
                 .eq("timeframe", timeframe)
@@ -74,7 +74,7 @@ class PriceDatabase:
     def get_database_stats(self):
         """Return DB stats"""
         try:
-            response = self.supabase.table("price_data").select("asset,timestamp").execute()
+            response = self.supabase.table("prices_data").select("asset,timestamp").execute()
             records = response.data or []
             total = len(records)
             assets = {r["asset"] for r in records if "asset" in r}
