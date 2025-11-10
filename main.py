@@ -482,7 +482,7 @@ def main():
             current_time = now.time()
 
             # Define working hours
-            start_time = datetime.strptime("07:00", "%H:%M").time()
+            start_time = datetime.strptime("06:00", "%H:%M").time()
             end_time = datetime.strptime("22:00", "%H:%M").time()
 
             if start_time <= current_time <= end_time:
@@ -503,9 +503,9 @@ def main():
                     logging.info(f"🌙 {now.strftime('%H:%M')} - Outside working hours. Bot paused.")
                     bot_running = False
                 elif bot_running is False:  # only send once when paused
-                    msg = "🌙 *Trading Bot is paused and will start at 07:00 local time.*"
+                    msg = "🌙 *Trading Bot is paused and will start at 06:00 local time.*"
                     send_telegram_message(msg)
-                    logging.info(f"🌙 {now.strftime('%H:%M')} - Outside working hours. Waiting for 07:00.")
+                    logging.info(f"🌙 {now.strftime('%H:%M')} - Outside working hours. Waiting for 06:00.")
                     bot_running = None  # mark as message sent
 
             # Calculate time to next full hour
