@@ -214,7 +214,7 @@ class TradingSignalBot:
                     signal.expiry_time
                 ),
                 daemon=True,
-                name=f"Verify-{signal.asset}-M{signal.timeframe}-{signal_id[:8]}"
+                name=f"Verify-{signal.asset}-M{signal.timeframe}-{str(signal_id)[:8]}"
             )
             
             verification_thread.start()
